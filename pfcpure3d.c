@@ -133,38 +133,84 @@ void freeMemory()
 
 
 
-void restart(int time,double *Array,char *filepre,int iwaveflag)
+void restart(int time,double *Array, int layer, char *filepre,int iwaveflag)
 {
 	double *tmp;
 	double dum;
 	char filename[BUFSIZ];
+	MPI_Status status;
+    int tag = 0;
     	FILE *fp;
 
     	ptrdiff_t i,j,k;
 
-    	printf("myid=%d, iwaveflag=%d\n",myid,iwaveflag);
-    	printf("myid=%d, filepre=%s, time=%d\n",myid,filepre,time);
-        fflush(stdout);
-    	sprintf(filename,"%s_%d.dat.%d",filepre,time,myid);
-	fp = fopen(filename,"rt");
-        if (iwaveflag==1)
-        {
-		for(k=0;k<local_n0;k++)
+    	double * buffer_data = (double*) malloc((local_n0*Ny*Nx)*sizeof(double));
+
+    	if(myid == 0)
+    	{
+    		printf("myid=%d, iwaveflag=%d\n",myid,iwaveflag);
+    		printf("myid=%d, filepre=%s, time=%d\n",myid,filepre,time);
+        	fflush(stdout);
+    		sprintf(filename,"%d_%s_%d.dat",layer,filepre,time);
+
+    		// Read from file
+    		fp = fopen(filename,"r");
+    		double * temp_data = (double*) malloc((Nx*Ny*Nz)*sizeof(double));
+        	float number = 0.;
+    		if (fp != NULL)
+        	{
+            	for(k=0;k<Nz;k++)
+            	for(j=0;j<Ny;j++)
+            	for(i=0;i<Nx;i++)
+            	{
+            	    fscanf(fp, "%f ", &number);
+            	    temp_data[i+j*Nx+k*Nx*Ny] = number;
+            	}
+        	}
+        	else
+        	{
+        	    printf("error! file does not exist. \n");
+        	}
+        	fclose(fp);
+
+        	// Transfer to self
+        	for(k=0;k<local_n0;k++)
 			for(j=0;j<Ny;j++)
-				for(i=0;i<Nx;i++)
-                                {
-					fscanf(fp,"%lf",&dum);
-                                }
-       	}
+			for(i=0;i<Nx;i++)
+				buffer_data[i+j*Nx+k*Nx*Ny] = temp_data[i+j*Nx+k*Nx*Ny];
+
+            // Transfer to slaves
+    		for (int ii=1; ii<numprocs; ii++)
+        	{
+            	int offset, count;
+            	// master asks for local information from slave
+            	MPI_Recv(&offset, 1, MPI_INT, ii, tag, MPI_COMM_WORLD, &status);
+            	MPI_Recv(&count, 1, MPI_INT, ii, tag, MPI_COMM_WORLD, &status);
+
+            	// master sends data
+            	MPI_Send(temp_data+offset, count, MPI_DOUBLE, ii, tag, MPI_COMM_WORLD);
+        	}
+        	free(temp_data);
+    	}
+    	else
+    	{
+        	// slaves send local information to master
+        	int offset = local_0_start*Ny*Nx;
+        	int count = local_n0*Ny*Nx;
+        	MPI_Send(&offset, 1, MPI_INT, 0, tag, MPI_COMM_WORLD);
+        	MPI_Send(&count, 1, MPI_INT, 0, tag, MPI_COMM_WORLD);
+
+        	// slave recv data
+        	MPI_Recv(buffer_data, count, MPI_DOUBLE, 0, tag, MPI_COMM_WORLD, &status);
+    	}
+
+    	
 	for(k=0;k<local_n0;k++)
 		for(j=0;j<Ny;j++)
 			for(i=0;i<Nx;i++)
-                               {
-					fscanf(fp,"%lf",&Array[i+j*Nx2+k*Nx2*Ny]);
-                               }
- 	fclose(fp);
-    	printf("myid=%d, read in Array\n",myid);
-        fflush(stdout);
+					Array[i+j*Nx2+k*Nx2*Ny] = buffer_data[i+j*Nx+k*Nx*Ny];
+
+	free(buffer_data);
 	MPI_Barrier(MPI_COMM_WORLD);
 }
 
@@ -215,7 +261,7 @@ void output(int ii, int time,double *Array,char *filepre,int iwaveflag)
 		for(k=0;k<Nz;k++)
 			for(j=0;j<Ny;j++)
 				for(i=0;i<Nx;i++)
-					fprintf(fp,"%.17g\n",buffer[i+Nx*(j+k*Ny)]);
+					fprintf(fp,"%.5g\n",buffer[i+Nx*(j+k*Ny)]);
 		free(buffer);
 		fclose(fp);
 	}
@@ -506,6 +552,8 @@ void calcNL(int time)
 		}
 	}*/
 
+    gamma13 = 0.0-0.06*cos(2.*Pi*5.*time/totalTime);
+
 	// Bulk nonlinear terms
 	for(k=0;k<local_n0;k++)
 	{
@@ -559,7 +607,7 @@ void calcCorrelations(int time)
     	FILE *fp;
 
 	// XPFC kernel for BCC - 1 peak
-	qC1 = sqrt(3.)*2.*Pi/2.;		//first mode
+	qC1 = sqrt(3.)*2.*Pi;		//first mode
 	PreC1 = -0.5/(alpha1*alpha1);
 	DW1 = exp(-0.5*sigmaT*sigmaT*qC1*qC1/(rho1*beta1) );
  
@@ -642,23 +690,22 @@ void calcCorrelations(int time)
 
 }
 
-
-
-
 void initialize(int type)
 {
 	ptrdiff_t i,j,k;
 	ptrdiff_t index;
 	
 	double qx,qy,qz;
-        double x,y,z;
+    double x,y,z;
+    double x1,y1,z1;
   	double sigma = 1.0, rnum;
+  	double theta = Pi/4.;
 
         MPI_Status status;
 
-        qx = 2.*Pi*atomsx/Nx;
-       	qy = 2.*Pi*atomsy/Ny;
-        qz = 2.*Pi*atomsz/Nz;
+        qx = 2.*Pi*dx/sqrt(3)*2;
+       	qy = 2.*Pi*dx/sqrt(3)*2;
+        qz = 2.*Pi*dx/sqrt(3)*2;
 
 	// Input BCC crystal
 	for(k=0;k<local_n0;k++)
@@ -672,10 +719,27 @@ void initialize(int type)
 				x = (double)(i);
 				index = i+Nx2*(j+k*Ny);
 
-				n1[index] = n0;//amp0*pow( 1./6.*(cos(qx*x)*cos(qy*y)+cos(qy*y)*cos(qz*z)+cos(qx*x)*cos(qz*z)) + .5, icpower) + n0;
-				n2[index] = n0;
-				n3[index] = n0;
-
+				if(y>=10 &&y <= Ny/2-10)
+				{
+					n1[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(qy*(-(y-4*Pi/3./qy)*sin(-Pi/6.)+z*cos(-Pi/6.)))+cos(qy*(-(y-4*Pi/3./qy)*sin(Pi/6.)+z*cos(Pi/6.))))+n0;
+					n2[index] = amp0*(cos(qy*y)+cos(qy*(-y*sin(-Pi/6.)+z*cos(-Pi/6.)))+cos(qy*(-y*sin(Pi/6.)+z*cos(Pi/6.))))+n0;
+					n3[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(qy*(-(y-4*Pi/3./qy)*sin(-Pi/6.)+z*cos(-Pi/6.)))+cos(qy*(-(y-4*Pi/3./qy)*sin(Pi/6.)+z*cos(Pi/6.))))+n0;
+				}
+				else if(y >= Ny/2+10 && y<Ny-10)
+				{
+					y1 = y*cos(theta)+z*sin(theta);
+					z1 = -y*sin(theta)+z*cos(theta);
+					n1[index] = amp0*(cos(qy*(y1-4*Pi/3./qy))+cos(qy*(-(y1-4*Pi/3./qy)*sin(-Pi/6.)+z1*cos(-Pi/6.)))+cos(qy*(-(y1-4*Pi/3./qy)*sin(Pi/6.)+z1*cos(Pi/6.))))+n0;
+					n2[index] = amp0*(cos(qy*y1)+cos(qy*(-y1*sin(-Pi/6.)+z1*cos(-Pi/6.)))+cos(qy*(-y1*sin(Pi/6.)+z1*cos(Pi/6.))))+n0;
+					n3[index] = amp0*(cos(qy*(y1-4*Pi/3./qy))+cos(qy*(-(y1-4*Pi/3./qy)*sin(-Pi/6.)+z1*cos(-Pi/6.)))+cos(qy*(-(y1-4*Pi/3./qy)*sin(Pi/6.)+z1*cos(Pi/6.))))+n0;
+				}
+				else
+				{
+					n1[index] = n0;
+					n2[index] = n0;
+					n3[index] = n0;
+				}
+				
 				if (iwave==1) 
 				{
 					g[index] = 0.0;
@@ -686,8 +750,6 @@ void initialize(int type)
 		}
 	}
 }
-
-
 
 void setfftwPlans()
 {
@@ -1082,7 +1144,8 @@ void add_noise()
 	ptrdiff_t i,j,k;
 	ptrdiff_t index1,index2,index;
 	double rnum;
-	srand(time(0)+myid); /* Set random seed. */
+	time_t t;
+	srand((unsigned) time(&t)+myid);
 	for(k=0;k<local_n0;k++)
 	{
 		index1 = Nx2*k*Ny;
@@ -1092,15 +1155,45 @@ void add_noise()
 			for(i=0;i<Nx;i++)
 			{
 				index=i + index2;
-				rnum = (double)rand() / RAND_MAX;
+				rnum = 2.*((double)rand() / RAND_MAX)-1.;
 				n1[index] += epdt/dx*rnum;
-				rnum = (double)rand() / RAND_MAX;
+				rnum = 2.*((double)rand() / RAND_MAX)-1.;
 				n2[index] += epdt/dx*rnum;
-				rnum = (double)rand() / RAND_MAX;
+				rnum = 2.*((double)rand() / RAND_MAX)-1.;
 				n3[index] += epdt/dx*rnum;
 			}
 		}
 	}
+}
+
+double rand_normal(double mean, double stddev)
+{
+    double n2 = 0.0;
+    int n2_cached = 0;
+
+    time_t t;
+	srand((unsigned) time(&t)+myid);
+
+    if (!n2_cached) {
+        double x, y, r;
+        do
+        {
+            x = 2.0*rand()/RAND_MAX - 1;
+            y = 2.0*rand()/RAND_MAX - 1;
+            r = x*x + y*y;
+        } while (r==0.0 || r>1.0);
+        {
+            double d = sqrt(-2.0*log(r)/r);
+            double n1 = x*d;
+            n2 = y*d;
+            double result = n1*stddev + mean;
+            n2_cached = 1;
+            return result;
+        }
+    } else {
+        n2_cached = 0;
+        return n2*stddev + mean;
+    }
 }
 
 
@@ -1157,6 +1250,8 @@ int main(int argc, char* argv[])
 	if (restartFlag == 0)
 	{
 		initialize(0);
+		//rand_normal(0.0,ampc);
+		add_noise();
 		if (myid==0) printf("output 0\n");
         //energy(0,run);
 		output(1,0,n1,run,0);
@@ -1166,25 +1261,29 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		if (myid==0) printf("restart flag has been triggered\n");
-		if (myid==0) printf("restart from time iteration %d\n",restartTime);
-	 	printf("%d Calling restart for n\n",myid);
-		restart(restartTime,n1,restartrun,0);
-	 	printf("%d Read in n, now iwaveflag=%d\n",myid,1+restartTime%10);
+		if (myid==0) 
+		{
+			printf("restart flag has been triggered\n");
+			printf("restart from time iteration %d\n",restartTime);
+	 		printf("Calling restart for n\n");
+		}
+		restart(restartTime,n1,1,restartrun,0);
+		restart(restartTime,n2,2,restartrun,0);
+		restart(restartTime,n3,3,restartrun,0);
+	 	//printf("%d Read in n, now iwaveflag=%d\n",myid,1+restartTime%10);
 		//if (iwave==1) restart(restartTime,g,restartrun,1+restartTime%10);
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
-
-	add_noise();
 
 	if (myid==0) printf("beginning iterations\n");
 
 	for(t=restartTime+1;t<totalTime;t++)
 	{
 
-		//if(t%1001==0)
-		//add_noise();
+		if(t%1000==1)
+			//rand_normal(0.0,ampc);
+			add_noise();
 
 		fftw_execute(planF_n1);		//forward transform density
 		fftw_execute(planF_n2);		//forward transform density

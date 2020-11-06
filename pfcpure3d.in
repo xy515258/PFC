@@ -1,12 +1,12 @@
 a01 			:: run
-0.1 20.0 20.0		:: # of unit cells in x, y, z
+0.1 80.0 80.0		:: # of unit cells in x, y, z
 0.81675 0.0680625 .01 	:: lattice spacing, dx, dt
 2.5 2.0 4.15            :: IC amplitude (amp0), IC exponent (icpower)
-0.			:: Avg density (n0)
-500001 50000 100    	:: totalTime, state dump freqency (printFreq), energy compute freqency (eneFreq)
+0.1			:: Avg density (n0)
+100001 1000 100    	:: totalTime, state dump freqency (printFreq), energy compute freqency (eneFreq)
 1 1. 			:: dynamic conservation (0=nonconserved, 1=conserved), density mobility prefactor (Mn)
 0 1. 0.001		:: Eq of motion (0=dissipative, 1=damped wave), wave speed prefact (alphaw), damping prefact (betaw)
-0 0.1   		:: itemp (0=noise off, 1=noise on), ampc (unscaled noise amplitude)
+0 0.2   		:: itemp (0=noise off, 1=noise on), ampc (unscaled noise amplitude)
 1. 1. 8.  		:: width, density, count of 1st C2 peak family (alpha1, rho1, beta1)
 0.1 100.		:: temperature parameter (sigmaT), minimum C2 value cutoff (omcut)
 1.4 1.0			:: -n^3/6 coeff (w), n^4/12 coefficient (u)

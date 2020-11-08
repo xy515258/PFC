@@ -703,9 +703,9 @@ void initialize(int type)
 
         MPI_Status status;
 
-        qx = 2.*Pi*dx/sqrt(3)*2;
-       	qy = 2.*Pi*dx/sqrt(3)*2;
-        qz = 2.*Pi*dx/sqrt(3)*2;
+        qx = 2.*Pi*dx*sqrt(3);
+       	qy = 2.*Pi*dx*sqrt(3);
+        qz = 2.*Pi*dx*sqrt(3);
 
 	// Input BCC crystal
 	for(k=0;k<local_n0;k++)

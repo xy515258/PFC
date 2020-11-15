@@ -67,7 +67,9 @@ double *n2;			//density
 double *n2fNL;			//non-linear term for density (gfr)
 double *n3;			//density
 double *n3fNL;			//non-linear term for density (gfr)
-double *g;			//wave term (g=dn/dt)
+double *g1;			//wave term (g=dn/dt)
+double *g2;			//wave term (g=dn/dt)
+double *g3;			//wave term (g=dn/dt)
 double *ran2;			//noise array2
 double *ran3;			//noise array3
 
@@ -86,7 +88,7 @@ fftw_complex *omegak3,*k3arr;		//k-space C2 and k2 arrays
 fftw_plan planF_n1, planB_n1, planF_n2, planB_n2, planF_n3, planB_n3;		//forward and backward plan for density
 fftw_plan planF_NL_n1, planF_NL_n2, planF_NL_n3;			//non-linear forward transform
 fftw_plan planB_NL_n1, planB_NL_n2, planB_NL_n3;			//backward plan for energy
-fftw_plan planF_g;			//forward plan for g
+fftw_plan planF_g1, planF_g2, planF_g3;			//forward plan for g
 
 
 
@@ -98,7 +100,12 @@ void freeMemory()
 	free(n1fNL);
 	free(n2fNL);
 	free(n3fNL);
-	if (iwave==1) free(g);
+	if (iwave==1)
+	{
+		free(g1);
+		free(g2);
+		free(g3);
+	}
 	if (itemp > 0) free(ran2);
 	if (itemp > 0) free(ran3);
 
@@ -127,13 +134,18 @@ void freeMemory()
 	fftw_destroy_plan(planB_NL_n1);
 	fftw_destroy_plan(planB_NL_n2);
 	fftw_destroy_plan(planB_NL_n3);
-	if (iwave==1) fftw_destroy_plan(planF_g);
+	if (iwave==1) 
+	{
+		fftw_destroy_plan(planF_g1);
+		fftw_destroy_plan(planF_g2);
+		fftw_destroy_plan(planF_g3);
+	}
 }
 
 
 
 
-void restart(int time,double *Array, int layer, char *filepre,int iwaveflag)
+void restart(int time,double *Array, char *var, char *filepre)
 {
 	double *tmp;
 	double dum;
@@ -148,10 +160,9 @@ void restart(int time,double *Array, int layer, char *filepre,int iwaveflag)
 
     	if(myid == 0)
     	{
-    		printf("myid=%d, iwaveflag=%d\n",myid,iwaveflag);
-    		printf("myid=%d, filepre=%s, time=%d\n",myid,filepre,time);
+    		printf("var=%s, filepre=%s, time=%d\n",var,filepre,time);
         	fflush(stdout);
-    		sprintf(filename,"%d_%s_%d.dat",layer,filepre,time);
+    		sprintf(filename,"%s_%s_%d.dat",var,filepre,time);
 
     		// Read from file
     		fp = fopen(filename,"r");
@@ -218,7 +229,7 @@ void restart(int time,double *Array, int layer, char *filepre,int iwaveflag)
 
 
 
-void output(int ii, int time,double *Array,char *filepre,int iwaveflag)
+void output(char *var, int time,double *Array,char *filepre)
 {
 	char filename[BUFSIZ];
     	FILE *fp;
@@ -248,11 +259,8 @@ void output(int ii, int time,double *Array,char *filepre,int iwaveflag)
 	
 
 	// Output double precision text files with n and, if iwave=1, g
-    	sprintf(filename,"%d_%s_%d.dat",ii,filepre,time);
-        if (iwaveflag==0)
+    	sprintf(filename,"%s_%s_%d.dat",var,filepre,time);
 	   		fp = fopen(filename,"w");
-		else
-	   		fp = fopen(filename,"a");
 		if(fp==NULL)
 		{
 			printf("Unable to open file for writing\n");
@@ -318,12 +326,12 @@ void timeStepn()
 			{
 				index = i + index2;
 				//STRONG SI TIME STEP
-				kn1[index][0] = omegak1[index][0] * ( kn1[index][0] + k1arr[index][0]*(kn1fNL[index][0]/*+gamma12*kn2[index][0]+gamma13*kn3[index][0]*/) );
-				kn1[index][1] = omegak1[index][1] * ( kn1[index][1] + k1arr[index][0]*(kn1fNL[index][1]/*+gamma12*kn2[index][1]+gamma13*kn3[index][1]*/) );
-				kn2[index][0] = omegak2[index][0] * ( kn2[index][0] + k2arr[index][0]*(kn2fNL[index][0]/*+gamma12*kn1[index][0]+gamma23*kn3[index][0]*/) );
-				kn2[index][1] = omegak2[index][1] * ( kn2[index][1] + k2arr[index][0]*(kn2fNL[index][1]/*+gamma12*kn1[index][1]+gamma23*kn3[index][1]*/) );
-				kn3[index][0] = omegak3[index][0] * ( kn3[index][0] + k3arr[index][0]*(kn3fNL[index][0]/*+gamma13*kn1[index][0]+gamma23*kn2[index][0]*/) );
-				kn3[index][1] = omegak3[index][1] * ( kn3[index][1] + k3arr[index][0]*(kn3fNL[index][1]/*+gamma13*kn1[index][1]+gamma23*kn2[index][1]*/) );
+				kn1[index][0] = omegak1[index][0] * ( kn1[index][0] + k1arr[index][0]*(kn1fNL[index][0]) );
+				kn1[index][1] = omegak1[index][1] * ( kn1[index][1] + k1arr[index][0]*(kn1fNL[index][1]) );
+				kn2[index][0] = omegak2[index][0] * ( kn2[index][0] + k2arr[index][0]*(kn2fNL[index][0]) );
+				kn2[index][1] = omegak2[index][1] * ( kn2[index][1] + k2arr[index][0]*(kn2fNL[index][1]) );
+				kn3[index][0] = omegak3[index][0] * ( kn3[index][0] + k3arr[index][0]*(kn3fNL[index][0]) );
+				kn3[index][1] = omegak3[index][1] * ( kn3[index][1] + k3arr[index][0]*(kn3fNL[index][1]) );
 			}
 		}
 	}
@@ -333,7 +341,7 @@ void timeStepn()
 
 
 
-/*void timeStepnWave()
+void timeStepnWave()
 {
 	ptrdiff_t i,j,k;
 	ptrdiff_t index,index1,index2;
@@ -354,8 +362,12 @@ void timeStepn()
 			{
 				index = i + index2;
 				//SI1,SI2
-				kn[index][0] = omegak[index][0] * ( kn[index][0] + dt*karr[index][0]*knfNL[index][0] );
-				kn[index][1] = omegak[index][1] * ( kn[index][1] + dt*karr[index][1]*knfNL[index][1] );
+				kn1[index][0] = omegak1[index][0] * ( kn1[index][0] + dt*k1arr[index][0]*kn1fNL[index][0] );
+				kn1[index][1] = omegak1[index][1] * ( kn1[index][1] + dt*k1arr[index][1]*kn1fNL[index][1] );
+				kn2[index][0] = omegak2[index][0] * ( kn2[index][0] + dt*k2arr[index][0]*kn2fNL[index][0] );
+				kn2[index][1] = omegak2[index][1] * ( kn2[index][1] + dt*k2arr[index][1]*kn2fNL[index][1] );
+				kn3[index][0] = omegak3[index][0] * ( kn3[index][0] + dt*k3arr[index][0]*kn3fNL[index][0] );
+				kn3[index][1] = omegak3[index][1] * ( kn3[index][1] + dt*k3arr[index][1]*kn3fNL[index][1] );
 				//EXPLICIT
 				//kn[index][0] = (omegak[index][0] + 1.) * kn[index][0] + rmult*karr[index][0]*knfNL[index][0];
 				//kn[index][1] = (omegak[index][1] + 1.) * kn[index][1] + rmult*karr[index][1]*knfNL[index][1];
@@ -363,7 +375,9 @@ void timeStepn()
 		}
 	}
 	// Second part of algorithm
-	fftw_execute(planF_g);
+	fftw_execute(planF_g1);
+	fftw_execute(planF_g2);
+	fftw_execute(planF_g3);
 	for(k=0;k<local_n0;k++)
 	{
 		index1 = (Nx/2+1)*k*Ny;
@@ -374,8 +388,12 @@ void timeStepn()
 			{
 				index = i + index2;
 				//SI1,SI2
-				kn[index][0] = kn[index][0] + rmult*omegak[index][0]*knfNL[index][0];
-				kn[index][1] = kn[index][1] + rmult*omegak[index][1]*knfNL[index][1];
+				kn1[index][0] = kn1[index][0] + rmult*omegak1[index][0]*kn1fNL[index][0];
+				kn1[index][1] = kn1[index][1] + rmult*omegak1[index][1]*kn1fNL[index][1];
+				kn2[index][0] = kn2[index][0] + rmult*omegak2[index][0]*kn2fNL[index][0];
+				kn2[index][1] = kn2[index][1] + rmult*omegak2[index][1]*kn2fNL[index][1];
+				kn3[index][0] = kn3[index][0] + rmult*omegak3[index][0]*kn3fNL[index][0];
+				kn3[index][1] = kn3[index][1] + rmult*omegak3[index][1]*kn3fNL[index][1];
 				//EXPLICIT
 				//kn[index][0] = kn[index][0] + rmult*knfNL[index][0];
 				//kn[index][1] = kn[index][1] + rmult*knfNL[index][1];
@@ -392,11 +410,13 @@ void timeStepn()
 			for(i=0;i<Nx;i++)
 			{
 				index = i + index2;
-				g[index]=n[index];
+				g1[index]=n1[index];
+				g2[index]=n2[index];
+				g3[index]=n3[index];
 			}
 		}
 	}
-}*/
+}
 
 
 
@@ -552,8 +572,6 @@ void calcNL(int time)
 		}
 	}*/
 
-    gamma13 = 0.0-0.06*cos(2.*Pi*5.*time/totalTime);
-
 	// Bulk nonlinear terms
 	for(k=0;k<local_n0;k++)
 	{
@@ -563,6 +581,7 @@ void calcNL(int time)
 			index2 = index1 + Nx2*j;
 			for(i=0;i<Nx;i++)
 			{
+				gamma13 = -0.06*sin(2*Pi*j/Ny);
 				index = i + index2;
 				double couple1,couple2,couple3,dcouple1,dcouple2,dcouple3;
 				couple1 = (1+tanh((n1[index]-nc)/sigmac))/2.;
@@ -607,7 +626,7 @@ void calcCorrelations(int time)
     	FILE *fp;
 
 	// XPFC kernel for BCC - 1 peak
-	qC1 = sqrt(3.)*2.*Pi;		//first mode
+	qC1 = 2.*Pi*sqrt(3);		//first mode
 	PreC1 = -0.5/(alpha1*alpha1);
 	DW1 = exp(-0.5*sigmaT*sigmaT*qC1*qC1/(rho1*beta1) );
  
@@ -690,6 +709,9 @@ void calcCorrelations(int time)
 
 }
 
+
+
+
 void initialize(int type)
 {
 	ptrdiff_t i,j,k;
@@ -699,13 +721,13 @@ void initialize(int type)
     double x,y,z;
     double x1,y1,z1;
   	double sigma = 1.0, rnum;
-  	double theta = Pi/4.;
+  	double theta = 0.;
 
         MPI_Status status;
 
         qx = 2.*Pi*dx*sqrt(3);
-       	qy = 2.*Pi*dx*sqrt(3);
-        qz = 2.*Pi*dx*sqrt(3);
+       	qy = 2.*Pi*dy*sqrt(3);
+        qz = 2.*Pi*dz*sqrt(3);
 
 	// Input BCC crystal
 	for(k=0;k<local_n0;k++)
@@ -721,17 +743,17 @@ void initialize(int type)
 
 				if(y>=10 &&y <= Ny/2-10)
 				{
-					n1[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(qy*(-(y-4*Pi/3./qy)*sin(-Pi/6.)+z*cos(-Pi/6.)))+cos(qy*(-(y-4*Pi/3./qy)*sin(Pi/6.)+z*cos(Pi/6.))))+n0;
-					n2[index] = amp0*(cos(qy*y)+cos(qy*(-y*sin(-Pi/6.)+z*cos(-Pi/6.)))+cos(qy*(-y*sin(Pi/6.)+z*cos(Pi/6.))))+n0;
-					n3[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(qy*(-(y-4*Pi/3./qy)*sin(-Pi/6.)+z*cos(-Pi/6.)))+cos(qy*(-(y-4*Pi/3./qy)*sin(Pi/6.)+z*cos(Pi/6.))))+n0;
+					n1[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(-qy*(y-4*Pi/3./qy)*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*(y-4*Pi/3./qy)*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
+					n2[index] = amp0*(cos(qy*y)+cos(-qy*y*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*y*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
+					n3[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(-qy*(y-4*Pi/3./qy)*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*(y-4*Pi/3./qy)*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
 				}
 				else if(y >= Ny/2+10 && y<Ny-10)
 				{
 					y1 = y*cos(theta)+z*sin(theta);
 					z1 = -y*sin(theta)+z*cos(theta);
-					n1[index] = amp0*(cos(qy*(y1-4*Pi/3./qy))+cos(qy*(-(y1-4*Pi/3./qy)*sin(-Pi/6.)+z1*cos(-Pi/6.)))+cos(qy*(-(y1-4*Pi/3./qy)*sin(Pi/6.)+z1*cos(Pi/6.))))+n0;
+					n1[index] = amp0*(cos(qy*(y1-2*Pi/3./qy))+cos(-qy*(y1-2*Pi/3./qy)*sin(-Pi/6.)+qz*(z1-2*sqrt(3)*Pi/3./qy)*cos(-Pi/6.))+cos(-qy*(y1-2*Pi/3./qy)*sin(Pi/6.)+qz*(z1-2*sqrt(3)*Pi/3./qy)*cos(Pi/6.)))+n0;
 					n2[index] = amp0*(cos(qy*y1)+cos(qy*(-y1*sin(-Pi/6.)+z1*cos(-Pi/6.)))+cos(qy*(-y1*sin(Pi/6.)+z1*cos(Pi/6.))))+n0;
-					n3[index] = amp0*(cos(qy*(y1-4*Pi/3./qy))+cos(qy*(-(y1-4*Pi/3./qy)*sin(-Pi/6.)+z1*cos(-Pi/6.)))+cos(qy*(-(y1-4*Pi/3./qy)*sin(Pi/6.)+z1*cos(Pi/6.))))+n0;
+					n3[index] = amp0*(cos(qy*(y1-4*Pi/3./qy))+cos(-qy*(y1-4*Pi/3./qy)*sin(-Pi/6.)+qz*z1*cos(-Pi/6.))+cos(-qy*(y1-4*Pi/3./qy)*sin(Pi/6.)+qz*z1*cos(Pi/6.)))+n0;
 				}
 				else
 				{
@@ -739,10 +761,16 @@ void initialize(int type)
 					n2[index] = n0;
 					n3[index] = n0;
 				}
+
+				n1[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(-qy*(y-4*Pi/3./qy)*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*(y-4*Pi/3./qy)*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
+				n2[index] = amp0*(cos(qy*y)+cos(-qy*y*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*y*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
+				n3[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(-qy*(y-4*Pi/3./qy)*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*(y-4*Pi/3./qy)*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
 				
 				if (iwave==1) 
 				{
-					g[index] = 0.0;
+					g1[index] = 0.0;
+					g2[index] = 0.0;
+					g3[index] = 0.0;
 //      					rnum =gsl_ran_gaussian_ziggurat(gBaseRand,sigma);
 //					g[index] = rnum*0.0000001;
 				}
@@ -750,6 +778,8 @@ void initialize(int type)
 		}
 	}
 }
+
+
 
 void setfftwPlans()
 {
@@ -766,7 +796,12 @@ void setfftwPlans()
 	planB_NL_n1 = fftw_mpi_plan_dft_c2r_3d(Nz, Ny, Nx, kn1, n1fNL, MPI_COMM_WORLD, FFTW_MEASURE);
 	planB_NL_n2 = fftw_mpi_plan_dft_c2r_3d(Nz, Ny, Nx, kn2, n2fNL, MPI_COMM_WORLD, FFTW_MEASURE);
 	planB_NL_n3 = fftw_mpi_plan_dft_c2r_3d(Nz, Ny, Nx, kn3, n3fNL, MPI_COMM_WORLD, FFTW_MEASURE);
-	//if (iwave==1) planF_g = fftw_mpi_plan_dft_r2c_3d(Nz, Ny, Nx, g, knfNL, MPI_COMM_WORLD, FFTW_MEASURE);
+	if (iwave==1)
+	{
+		planF_g1 = fftw_mpi_plan_dft_r2c_3d(Nz, Ny, Nx, g1, kn1fNL, MPI_COMM_WORLD, FFTW_MEASURE);
+		planF_g2 = fftw_mpi_plan_dft_r2c_3d(Nz, Ny, Nx, g2, kn2fNL, MPI_COMM_WORLD, FFTW_MEASURE);
+		planF_g3 = fftw_mpi_plan_dft_r2c_3d(Nz, Ny, Nx, g3, kn3fNL, MPI_COMM_WORLD, FFTW_MEASURE);
+	}
 }
 
 
@@ -780,7 +815,12 @@ void allocateArrays()
 	n1fNL = (double *) fftw_malloc( sizeof (double)*(alloc_local+4*Ny*local_n0) );
 	n2fNL = (double *) fftw_malloc( sizeof (double)*(alloc_local+4*Ny*local_n0) );
 	n3fNL = (double *) fftw_malloc( sizeof (double)*(alloc_local+4*Ny*local_n0) );
-	//if (iwave==1) g = (double *) fftw_malloc( sizeof (double)*(alloc_local+4*Ny*local_n0) );
+	if (iwave==1)
+	{
+		g1 = (double *) fftw_malloc( sizeof (double)*(alloc_local+4*Ny*local_n0) );
+		g2 = (double *) fftw_malloc( sizeof (double)*(alloc_local+4*Ny*local_n0) );
+		g3 = (double *) fftw_malloc( sizeof (double)*(alloc_local+4*Ny*local_n0) );
+	}
 	if (itemp > 0) 
 	{
 		ran2 = (double *) fftw_malloc( sizeof (double)*(alloc_local+4*Ny*local_n0) );
@@ -828,7 +868,7 @@ void fftwMPIsetup()
 void domainParams()
 {
 	//from the lattice spacing and grid spacing, compute the number of grid points
-	if (myid==0) printf("dx=%f  numAtomsx=%f numAtomsy=%f numAtomsz=%f\n",dx, atomsx,atomsy,atomsz);
+	if (myid==0) printf("dx=%f dy=%f dz=%f numAtomsx=%f numAtomsy=%f numAtomsz=%f\n",dx, dy, dz, atomsx,atomsy,atomsz);
 
 	//BCC
 	Nx = (int)(floor(spacing/dx*atomsx+.5));
@@ -872,7 +912,7 @@ void inputVariables()
 	line = fgets(line, BUFSIZ, in);
 	sscanf (line, "%lf %lf %lf", &atomsx,&atomsy,&atomsz);	
 	line = fgets(line, BUFSIZ, in);
-	sscanf (line, "%lf %lf %lf",&spacing,&dx,&dt);	
+	sscanf (line, "%lf %lf %lf %lf %lf",&spacing,&dx,&dy,&dz,&dt);	
 	line = fgets(line, BUFSIZ, in);
 	sscanf (line, "%lf %lf",&amp0,&icpower);	
 	line = fgets(line, BUFSIZ, in);
@@ -899,29 +939,26 @@ void inputVariables()
 	sscanf (line, "%s", restartrun);
 	fclose(in);
 
-        dy=dx;
-        dz=dx;
-
-       if (myid==0) 
-       {
-	printf("done reading input file\n");
+    if (myid==0) 
+    {
+		printf("done reading input file\n");
 	
-	printf("run=%s\n",run);
-	printf("numAtomsx=%lf	numAtomsy=%lf	numAtomsz=%lf\n",atomsx,atomsy,atomsz);
-	printf("spacing=%lf	dx=%lf	dt=%lf\n",spacing,dx,dt);
-	printf("amp0=%lf	icpower=%lf\n",amp0,icpower);
-	printf("n0=%lf\n",n0);
-	printf("totalTime=%d	printFreq=%d	eneFreq=%d\n",totalTime,printFreq,eneFreq);
-	printf("icons=%d	Mn=%lf\n",icons,Mn);
-	printf("iwave=%d	alphaw=%lf	betaw=%lf\n",iwave,alphaw,betaw);
-	printf("itemp=%d	ampc=%lf\n",itemp,ampc);
-	printf("alpha1=%lf	rho1=%lf	beta1=%lf\n",alpha1,rho1,beta1);
-	printf("sigmaT=%lf	omcut=%lf\n",sigmaT,omcut);
-	printf("w=%lf		u=%lf\n",w,u);
-	printf("gamma12=%lf		gamma13=%lf    gamma23=%lf    nc=%lf    sigmac=%lf\n",gamma12,gamma13,gamma23,nc,sigmac);
-	printf("rFlag=%d	rTime=%d\n",restartFlag,restartTime);
-	printf("restartrun=%s\n",restartrun);
-       }
+		printf("run=%s\n",run);
+		printf("numAtomsx=%lf	numAtomsy=%lf	numAtomsz=%lf\n",atomsx,atomsy,atomsz);
+		printf("spacing=%lf	dx=%lf dt=%lf\n",spacing,dx,dt);
+		printf("amp0=%lf	icpower=%lf\n",amp0,icpower);
+		printf("n0=%lf\n",n0);
+		printf("totalTime=%d	printFreq=%d	eneFreq=%d\n",totalTime,printFreq,eneFreq);
+		printf("icons=%d	Mn=%lf\n",icons,Mn);
+		printf("iwave=%d	alphaw=%lf	betaw=%lf\n",iwave,alphaw,betaw);
+		printf("itemp=%d	ampc=%lf\n",itemp,ampc);
+		printf("alpha1=%lf	rho1=%lf	beta1=%lf\n",alpha1,rho1,beta1);
+		printf("sigmaT=%lf	omcut=%lf\n",sigmaT,omcut);
+		printf("w=%lf		u=%lf\n",w,u);
+		printf("gamma12=%lf		gamma13=%lf    gamma23=%lf    nc=%lf    sigmac=%lf\n",gamma12,gamma13,gamma23,nc,sigmac);
+		printf("rFlag=%d	rTime=%d\n",restartFlag,restartTime);
+		printf("restartrun=%s\n",restartrun);
+    }
 	
 }
 
@@ -1220,10 +1257,7 @@ int main(int argc, char* argv[])
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	//set up fftw plans
-	setfftwPlans();
-
-        //caluclate the SI correlation kernel and Laplacian arrays in kspace
-	calcCorrelations(0);				
+	setfftwPlans();				
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
@@ -1250,14 +1284,17 @@ int main(int argc, char* argv[])
 	if (restartFlag == 0)
 	{
 		initialize(0);
-		//rand_normal(0.0,ampc);
-		add_noise();
 		if (myid==0) printf("output 0\n");
         //energy(0,run);
-		output(1,0,n1,run,0);
-		output(2,0,n2,run,0);
-		output(3,0,n3,run,0);
-		//if (iwave==1) output(1,0,g,run,1);
+		output("1",0,n1,run);
+		output("2",0,n2,run);
+		output("3",0,n3,run);
+		if (iwave==1)
+		{
+			output("g1",0,g1,run);
+			output("g2",0,g2,run);
+			output("g3",0,g3,run);
+		}
 	}
 	else
 	{
@@ -1265,13 +1302,16 @@ int main(int argc, char* argv[])
 		{
 			printf("restart flag has been triggered\n");
 			printf("restart from time iteration %d\n",restartTime);
-	 		printf("Calling restart for n\n");
 		}
-		restart(restartTime,n1,1,restartrun,0);
-		restart(restartTime,n2,2,restartrun,0);
-		restart(restartTime,n3,3,restartrun,0);
-	 	//printf("%d Read in n, now iwaveflag=%d\n",myid,1+restartTime%10);
-		//if (iwave==1) restart(restartTime,g,restartrun,1+restartTime%10);
+		restart(restartTime,n1,"1",restartrun);
+		restart(restartTime,n2,"2",restartrun);
+		restart(restartTime,n3,"3",restartrun);
+		if (iwave==1)
+		{
+			restart(restartTime,g1,"g1",restartrun);
+			restart(restartTime,g2,"g2",restartrun);
+			restart(restartTime,g3,"g3",restartrun);
+		}
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -1280,6 +1320,9 @@ int main(int argc, char* argv[])
 
 	for(t=restartTime+1;t<totalTime;t++)
 	{
+		dy = (1+0.05*t/totalTime)*dy;
+		//caluclate the SI correlation kernel and Laplacian arrays in kspace
+		calcCorrelations(0);
 
 		if(t%1000==1)
 			//rand_normal(0.0,ampc);
@@ -1291,7 +1334,7 @@ int main(int argc, char* argv[])
 		calcNL(t);			//calculate non-linear terms
 		MPI_Barrier(MPI_COMM_WORLD);
 		if (iwave==0) timeStepn();
-		//else if (iwave==1) timeStepnWave();
+		else if (iwave==1) timeStepnWave();
 		MPI_Barrier(MPI_COMM_WORLD);
 		fftw_execute(planB_n1);		//inverse transform density
 		fftw_execute(planB_n2);		//inverse transform density
@@ -1300,8 +1343,8 @@ int main(int argc, char* argv[])
 		normalize(n2);	//normalize density after inverse transform
 		normalize(n3);	//normalize density after inverse transform
 		// Complete last part of wave algorithm
-		/*if (iwave==1) 
-                {
+		if (iwave==1) 
+        {
 			for(k=0;k<local_n0;k++)
 			{
 				index1 = Nx2*k*Ny;
@@ -1311,22 +1354,29 @@ int main(int argc, char* argv[])
 					for(i=0;i<Nx;i++)
 					{
 						index = i + index2;
-						g[index]=(n[index]-g[index])/dt;
+						g1[index]=(n1[index]-g1[index])/dt;
+						g2[index]=(n2[index]-g2[index])/dt;
+						g3[index]=(n3[index]-g3[index])/dt;
 					}
 				}
 			}
-                }
-        */
+        }
+        
 		MPI_Barrier(MPI_COMM_WORLD);
 
 		// Output density and, if iwave=1, g
 		if( t%printFreq == 0 )
 		{
 			if (myid==0) {printf("time = %d\n",t); fflush(stdout);}
-			output(1,t,n1,run,0);
-			output(2,t,n2,run,0);
-			output(3,t,n3,run,0);
-			//if (iwave==1) output(1,t,g,run,1);
+			output("1",t,n1,run);
+			output("2",t,n2,run);
+			output("3",t,n3,run);
+			if (iwave==1)
+			{
+				output("g1",t,g1,run);
+				output("g2",t,g2,run);
+				output("g3",t,g3,run);
+			}
 		}
 
 		// Output energy

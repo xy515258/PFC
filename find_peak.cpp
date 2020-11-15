@@ -15,25 +15,18 @@ int main(int argc, char** argv)
     int ym, yp, zm, zp;
     int step, index,indexmy,indexpy,indexmz,indexpz,indexmymz,indexmypz,indexpymz,indexpypz;
     int atom_num = 0;
-    
+    int totalstep = 10000;
     double spacing = 0.81675;
     double dx = 0.0680625;
+    double dy = 0.0680625;
+    double dz = 0.0680625;
     double atomsx = 0.1;
-    double atomsy = 80.;
-    double atomsz = 80.;
-    double dy = dx;
-    double dz = dx;
+    double atomsy = 160.;
+    double atomsz = 160.;
     
     const int NX = (int)(floor(spacing/dx*atomsx+.5));
     const int NY = (int)(floor(spacing/dy*atomsy+.5));
     const int NZ = (int)(floor(spacing/dz*atomsz+.5));
-    
-    double xlo = 0.;
-    double xhi = spacing;
-    double ylo = 0.;
-    double yhi = spacing*atomsy;
-    double zlo = 0.;
-    double zhi = spacing*atomsz;
     
     string number(argv[1]);
     double* n1 = new double[NX*NY*NZ];
@@ -49,8 +42,16 @@ int main(int argc, char** argv)
     string filename3("3_a01_9000.dat");
 
     step = stoi(number);
+    dy = (1+0.05*step/totalstep)*dy;
     char filenameout[sizeof "dump.00000000"];
     sprintf(filenameout, "dump.%08d", step);
+
+    double xlo = 0.;
+    double xhi = NX*dx*10;
+    double ylo = 0.;
+    double yhi = NY*dy;
+    double zlo = 0.;
+    double zhi = NZ*dz;
 
     filename1.replace(6,4,number);
     filename2.replace(6,4,number);

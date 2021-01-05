@@ -22,6 +22,7 @@ ptrdiff_t Nx,Ny,Nz;		//number of grid points in x,y and z
 ptrdiff_t Nx2;			//padded number of grid points in x
 double spacing;			//lattice spacing
 double dx,dy,dz;		//numerical grid spacings
+double dx_new,dy_new,dz_new;          //numerical grid spacings under strain
 double n0;			//avg density value
 char restartrun[3];		//run containing IC state
 int itemp;			//thermal noise switch
@@ -29,7 +30,7 @@ double ampc,epdt;		//thermal noise amplitude unscaled, scaled
 
 //time parameters
 int totalTime, printFreq, eneFreq;	//simulation time, print freq, ene freq
-double dt,ene1,ene2,ene3;				//time step, sys avg free energy
+double dt,ene1,ene2,ene3,ene_couple;				//time step, sys avg free energy
 int restartFlag,restartTime;		//flag for restarting (set to 1 or 2) and time
 
 //MPI parameters
@@ -572,6 +573,8 @@ void calcNL(int time)
 		}
 	}*/
 
+	//gamma13 = -0.1*cos(4*Pi*time/totalTime);
+
 	// Bulk nonlinear terms
 	for(k=0;k<local_n0;k++)
 	{
@@ -581,7 +584,6 @@ void calcNL(int time)
 			index2 = index1 + Nx2*j;
 			for(i=0;i<Nx;i++)
 			{
-				gamma13 = -0.06*sin(2*Pi*j/Ny);
 				index = i + index2;
 				double couple1,couple2,couple3,dcouple1,dcouple2,dcouple3;
 				couple1 = (1+tanh((n1[index]-nc)/sigmac))/2.;
@@ -635,22 +637,22 @@ void calcCorrelations(int time)
 		zk = k + local_0_start;
 
 		if ( zk < Nz/2 )
-			kz = zk*facz;
+			kz = zk*2.*Pi/(Nz*dz_new);
 		else
-			kz = (zk-Nz)*facz;
+			kz = (zk-Nz)*2.*Pi/(Nz*dz_new);
 
 		for(j=0;j<Ny;j++)
 		{
 			if ( j < Ny/2 )
-				ky = j*facy;
+				ky = j*2.*Pi/(Ny*dy_new);
 			else
-				ky = (j-Ny)*facy;
+				ky = (j-Ny)*2.*Pi/(Ny*dy_new);
 
 			for(i=0;i<Nx2p1;i++)
 			{
 
 			   index = i + Nx2p1*(j+k*Ny);
-			   kx = i*facx;
+			   kx = i*2.*Pi/(Nx*dx_new);
 		  	   k2 = kx*kx + ky*ky + kz*kz;
 			   if (k2 >= 0.0) rk = sqrt( k2 );
 			   else rk = 0.0;
@@ -721,7 +723,9 @@ void initialize(int type)
     double x,y,z;
     double x1,y1,z1;
   	double sigma = 1.0, rnum;
-  	double theta = 0.;
+  	double theta1 = Pi/180*0;
+  	double theta2 = -Pi/180*0;
+  	int phase = 1; /* 1 for H and -1 for T */
 
         MPI_Status status;
 
@@ -740,20 +744,23 @@ void initialize(int type)
 			{
 				x = (double)(i);
 				index = i+Nx2*(j+k*Ny);
+				double Radius = sqrt((z-Nz/2)*(z-Nz/2)+(y-Ny/2)*(y-Ny/2));
 
-				if(y>=10 &&y <= Ny/2-10)
+				if(Radius > Nz/4. + 10)
 				{
-					n1[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(-qy*(y-4*Pi/3./qy)*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*(y-4*Pi/3./qy)*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
-					n2[index] = amp0*(cos(qy*y)+cos(-qy*y*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*y*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
-					n3[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(-qy*(y-4*Pi/3./qy)*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*(y-4*Pi/3./qy)*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
-				}
-				else if(y >= Ny/2+10 && y<Ny-10)
-				{
-					y1 = y*cos(theta)+z*sin(theta);
-					z1 = -y*sin(theta)+z*cos(theta);
-					n1[index] = amp0*(cos(qy*(y1-2*Pi/3./qy))+cos(-qy*(y1-2*Pi/3./qy)*sin(-Pi/6.)+qz*(z1-2*sqrt(3)*Pi/3./qy)*cos(-Pi/6.))+cos(-qy*(y1-2*Pi/3./qy)*sin(Pi/6.)+qz*(z1-2*sqrt(3)*Pi/3./qy)*cos(Pi/6.)))+n0;
+					y1 = y*cos(theta1)+z*sin(theta1);
+					z1 = -y*sin(theta1)+z*cos(theta1);
+					n1[index] = amp0*(cos(qy*(y1-4*Pi/3./qy))+cos(-qy*(y1-4*Pi/3./qy)*sin(-Pi/6.)+qz*z1*cos(-Pi/6.))+cos(-qy*(y1-4*Pi/3./qy)*sin(Pi/6.)+qz*z1*cos(Pi/6.)))+n0;
 					n2[index] = amp0*(cos(qy*y1)+cos(qy*(-y1*sin(-Pi/6.)+z1*cos(-Pi/6.)))+cos(qy*(-y1*sin(Pi/6.)+z1*cos(Pi/6.))))+n0;
-					n3[index] = amp0*(cos(qy*(y1-4*Pi/3./qy))+cos(-qy*(y1-4*Pi/3./qy)*sin(-Pi/6.)+qz*z1*cos(-Pi/6.))+cos(-qy*(y1-4*Pi/3./qy)*sin(Pi/6.)+qz*z1*cos(Pi/6.)))+n0;
+					n3[index] = amp0*(cos(qy*(y1-phase*4*Pi/3./qy))+cos(-qy*(y1-phase*4*Pi/3./qy)*sin(-Pi/6.)+qz*z1*cos(-Pi/6.))+cos(-qy*(y1-phase*4*Pi/3./qy)*sin(Pi/6.)+qz*z1*cos(Pi/6.)))+n0;
+				}
+				else if(Radius < Nz/4. - 10)
+				{
+					y1 = y*cos(theta2)+z*sin(theta2);
+					z1 = -y*sin(theta2)+z*cos(theta2);
+					n1[index] = amp0*(cos(qy*(y1-4*Pi/3./qy))+cos(-qy*(y1-4*Pi/3./qy)*sin(-Pi/6.)+qz*z1*cos(-Pi/6.))+cos(-qy*(y1-4*Pi/3./qy)*sin(Pi/6.)+qz*z1*cos(Pi/6.)))+n0;
+					n2[index] = amp0*(cos(qy*y1)+cos(qy*(-y1*sin(-Pi/6.)+z1*cos(-Pi/6.)))+cos(qy*(-y1*sin(Pi/6.)+z1*cos(Pi/6.))))+n0;
+					n3[index] = amp0*(cos(qy*(y1-phase*4*Pi/3./qy))+cos(-qy*(y1-phase*4*Pi/3./qy)*sin(-Pi/6.)+qz*z1*cos(-Pi/6.))+cos(-qy*(y1-phase*4*Pi/3./qy)*sin(Pi/6.)+qz*z1*cos(Pi/6.)))+n0;
 				}
 				else
 				{
@@ -762,9 +769,12 @@ void initialize(int type)
 					n3[index] = n0;
 				}
 
-				n1[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(-qy*(y-4*Pi/3./qy)*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*(y-4*Pi/3./qy)*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
-				n2[index] = amp0*(cos(qy*y)+cos(-qy*y*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*y*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
-				n3[index] = amp0*(cos(qy*(y-4*Pi/3./qy))+cos(-qy*(y-4*Pi/3./qy)*sin(-Pi/6.)+qz*z*cos(-Pi/6.))+cos(-qy*(y-4*Pi/3./qy)*sin(Pi/6.)+qz*z*cos(Pi/6.)))+n0;
+				y1 = y*cos(theta1)+z*sin(theta1);
+				z1 = -y*sin(theta1)+z*cos(theta1);
+				n1[index] = amp0*(cos(qy*(y1-4*Pi/3./qy))+cos(-qy*(y1-4*Pi/3./qy)*sin(-Pi/6.)+qz*z1*cos(-Pi/6.))+cos(-qy*(y1-4*Pi/3./qy)*sin(Pi/6.)+qz*z1*cos(Pi/6.)))+n0;
+				n2[index] = amp0*(cos(qy*y1)+cos(qy*(-y1*sin(-Pi/6.)+z1*cos(-Pi/6.)))+cos(qy*(-y1*sin(Pi/6.)+z1*cos(Pi/6.))))+n0;
+				n3[index] = amp0*(cos(qy*(y1-phase*4*Pi/3./qy))+cos(-qy*(y1-phase*4*Pi/3./qy)*sin(-Pi/6.)+qz*z1*cos(-Pi/6.))+cos(-qy*(y1-phase*4*Pi/3./qy)*sin(Pi/6.)+qz*z1*cos(Pi/6.)))+n0;
+
 				
 				if (iwave==1) 
 				{
@@ -959,6 +969,9 @@ void inputVariables()
 		printf("rFlag=%d	rTime=%d\n",restartFlag,restartTime);
 		printf("restartrun=%s\n",restartrun);
     }
+    dx_new = dx;
+    dy_new = dy;
+	dz_new = dz;
 	
 }
 
@@ -974,9 +987,6 @@ void energy(int time,char *filepre)
         double mu1,avgdens1;
         double mu2,avgdens2;
         double mu3,avgdens3;
-        double ened1,mud1,avgdensd1;
-        double ened2,mud2,avgdensd2;
-        double ened3,mud3,avgdensd3;
         int isource,k2;
         MPI_Status status;
 
@@ -986,7 +996,10 @@ void energy(int time,char *filepre)
         if (myid==0)
         {
     		sprintf(filename,"%s.ene",filepre);
-		fpene = fopen(filename,"a");
+    		if(time==0)
+				fpene = fopen(filename,"w");
+			else
+				fpene = fopen(filename,"a");
         }
 
 	fftw_execute(planF_n1);		//forward transform density
@@ -1100,6 +1113,7 @@ void energy(int time,char *filepre)
         ene3=0.;
         mu3=0.;
         avgdens3=0.;
+        ene_couple=0.;
 	for(k=0;k<local_n0;k++)
 	{
 		index1 = Nx2*k*Ny;
@@ -1110,70 +1124,53 @@ void energy(int time,char *filepre)
 			for(i=0;i<Nx;i++)
 			{
 				index = i + index2;
-                               	ene1 = ene1 + .5*n1[index]*( n1fNL[index] + n1[index]*n1[index]*(-w/3. + u*n1[index]/6.) );
-                               	mu1 = mu1 + n1fNL[index] + n1[index]*n1[index]*(-w/6. + u*n1[index]/12.);
-                               	avgdens1 = avgdens1 + n1[index];
-                               	ene2 = ene2 + .5*n2[index]*( n2fNL[index] + n2[index]*n2[index]*(-w/3. + u*n2[index]/6.) );
-                               	mu2 = mu2 + n2fNL[index] + n2[index]*n2[index]*(-w/6. + u*n2[index]/12.);
-                               	avgdens2 = avgdens2 + n2[index];
-                               	ene3 = ene3 + .5*n3[index]*( n3fNL[index] + n3[index]*n3[index]*(-w/3. + u*n3[index]/6.) );
-                               	mu3 = mu3 + n3fNL[index] + n3[index]*n3[index]*(-w/6. + u*n3[index]/12.);
-                               	avgdens3 = avgdens3 + n3[index];
+                               	ene1 += .5*n1[index]*( n1fNL[index] + n1[index]*n1[index]*(-w/3. + u*n1[index]/6.) );
+                               	mu1 += n1fNL[index] + n1[index]*n1[index]*(-w/6. + u*n1[index]/12.);
+                               	avgdens1 += n1[index];
+                               	ene2 += .5*n2[index]*( n2fNL[index] + n2[index]*n2[index]*(-w/3. + u*n2[index]/6.) );
+                               	mu2 += n2fNL[index] + n2[index]*n2[index]*(-w/6. + u*n2[index]/12.);
+                               	avgdens2 += n2[index];
+                               	ene3 += .5*n3[index]*( n3fNL[index] + n3[index]*n3[index]*(-w/3. + u*n3[index]/6.) );
+                               	mu3 += n3fNL[index] + n3[index]*n3[index]*(-w/6. + u*n3[index]/12.);
+                               	avgdens3 += n3[index];
+                               	ene_couple += gamma12*(0.5+0.5*tanh((n1[index]-nc)/sigmac))*(0.5+0.5*tanh((n2[index]-nc)/sigmac));
+                               	ene_couple += gamma13*(0.5+0.5*tanh((n1[index]-nc)/sigmac))*(0.5+0.5*tanh((n3[index]-nc)/sigmac));
+                               	ene_couple += gamma23*(0.5+0.5*tanh((n2[index]-nc)/sigmac))*(0.5+0.5*tanh((n3[index]-nc)/sigmac));
 			}
 		    }
 	}
 
+	MPI_Allreduce(MPI_IN_PLACE, &ene1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(MPI_IN_PLACE, &ene2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(MPI_IN_PLACE, &ene3, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(MPI_IN_PLACE, &mu1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(MPI_IN_PLACE, &mu2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(MPI_IN_PLACE, &mu3, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(MPI_IN_PLACE, &avgdens1, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(MPI_IN_PLACE, &avgdens2, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(MPI_IN_PLACE, &avgdens3, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
 	// Tabulate and write avg energy, chemical potential, and density
-        if (myid == 0)
+    if (myid == 0)
 	{
-		for (isource=1; isource<numprocs; isource++)
-		{
-                     	MPI_Recv(&ened1,1,MPI_DOUBLE,isource,1,MPI_COMM_WORLD,&status);
-                     	ene1 = ene1+ened1;
-                     	MPI_Recv(&mud1,1,MPI_DOUBLE,isource,2,MPI_COMM_WORLD,&status);
-                     	mu1 = mu1+mud1;
-                     	MPI_Recv(&avgdensd1,1,MPI_DOUBLE,isource,3,MPI_COMM_WORLD,&status);
-                     	avgdens1 = avgdens1+avgdensd1;
-                     	MPI_Recv(&ened2,1,MPI_DOUBLE,isource,1,MPI_COMM_WORLD,&status);
-                     	ene2 = ene2+ened2;
-                     	MPI_Recv(&mud2,1,MPI_DOUBLE,isource,2,MPI_COMM_WORLD,&status);
-                     	mu2 = mu2+mud2;
-                     	MPI_Recv(&avgdensd2,1,MPI_DOUBLE,isource,3,MPI_COMM_WORLD,&status);
-                     	avgdens2 = avgdens2+avgdensd2;
-                     	MPI_Recv(&ened3,1,MPI_DOUBLE,isource,1,MPI_COMM_WORLD,&status);
-                     	ene3 = ene3+ened3;
-                     	MPI_Recv(&mud3,1,MPI_DOUBLE,isource,2,MPI_COMM_WORLD,&status);
-                     	mu3 = mu3+mud3;
-                     	MPI_Recv(&avgdensd3,1,MPI_DOUBLE,isource,3,MPI_COMM_WORLD,&status);
-                     	avgdens3 = avgdens3+avgdensd3;
-		}
-                ene1 = ene1/Nx/Ny/Nz;
-               	mu1  = mu1/Nx/Ny/Nz;
-               	avgdens1 = avgdens1/Nx/Ny/Nz;
-               	ene2 = ene2/Nx/Ny/Nz;
-               	mu2  = mu2/Nx/Ny/Nz;
-               	avgdens2 = avgdens2/Nx/Ny/Nz;
-               	ene3 = ene3/Nx/Ny/Nz;
-               	mu3  = mu3/Nx/Ny/Nz;
-               	avgdens3 = avgdens3/Nx/Ny/Nz;
+        ene1 = ene1/Nx/Ny/Nz;
+        mu1  = mu1/Nx/Ny/Nz;
+        avgdens1 = avgdens1/Nx/Ny/Nz;
+        ene2 = ene2/Nx/Ny/Nz;
+        mu2  = mu2/Nx/Ny/Nz;
+        avgdens2 = avgdens2/Nx/Ny/Nz;
+        ene3 = ene3/Nx/Ny/Nz;
+        mu3  = mu3/Nx/Ny/Nz;
+        avgdens3 = avgdens3/Nx/Ny/Nz;
+        ene_couple = ene_couple/Nx/Ny/Nz;
 
-		fprintf(fpene,"%9f %.17g %.17g %.17g \n",time*dt,ene1,mu1,avgdens1);
-	       	fclose(fpene);
-	}
-        else
-	{
-                MPI_Send(&ene1,1,MPI_DOUBLE,0,1,MPI_COMM_WORLD);
-                MPI_Send(&mu1,1,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
-                MPI_Send(&avgdens1,1,MPI_DOUBLE,0,3,MPI_COMM_WORLD);
-                MPI_Send(&ene2,1,MPI_DOUBLE,0,1,MPI_COMM_WORLD);
-                MPI_Send(&mu2,1,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
-                MPI_Send(&avgdens2,1,MPI_DOUBLE,0,3,MPI_COMM_WORLD);
-                MPI_Send(&ene3,1,MPI_DOUBLE,0,1,MPI_COMM_WORLD);
-                MPI_Send(&mu3,1,MPI_DOUBLE,0,2,MPI_COMM_WORLD);
-                MPI_Send(&avgdens3,1,MPI_DOUBLE,0,3,MPI_COMM_WORLD);
-	}
-	MPI_Barrier(MPI_COMM_WORLD);
+        double ene_total = ene1+ene2+ene3+ene_couple;
+        double mu_total = mu1+mu2+mu3;
+        double avgdens_total = avgdens1+avgdens2+avgdens3;
 
+		fprintf(fpene,"%9f %.17g %.17g %.17g %.17g \n",time*dt,ene_total,ene_couple,mu_total,avgdens_total);
+	    fclose(fpene);
+	}
 }
 
 void add_noise()
@@ -1259,6 +1256,9 @@ int main(int argc, char* argv[])
 	//set up fftw plans
 	setfftwPlans();				
 
+	//caluclate the SI correlation kernel and Laplacian arrays in kspace
+	calcCorrelations(0);
+
 	MPI_Barrier(MPI_COMM_WORLD);
 
   	//specifying to use Mersenne twister MT-19937 as the uniform PRNG
@@ -1285,7 +1285,7 @@ int main(int argc, char* argv[])
 	{
 		initialize(0);
 		if (myid==0) printf("output 0\n");
-        //energy(0,run);
+        energy(0,run);
 		output("1",0,n1,run);
 		output("2",0,n2,run);
 		output("3",0,n3,run);
@@ -1320,9 +1320,12 @@ int main(int argc, char* argv[])
 
 	for(t=restartTime+1;t<totalTime;t++)
 	{
-		dy = (1+0.05*t/totalTime)*dy;
-		//caluclate the SI correlation kernel and Laplacian arrays in kspace
-		calcCorrelations(0);
+		/*--------apply strain---------*/
+		dy_new = (1.+0.05*t/totalTime)*dy;
+		dz_new = (1.+0.05*t/totalTime)*dz;
+
+		//caluclate the SI correlation kernel and Laplacian arrays in kspace (only need when strain applied)
+		calcCorrelations(t);
 
 		if(t%1000==1)
 			//rand_normal(0.0,ampc);
@@ -1379,8 +1382,8 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		// Output energy
-		//if( t%eneFreq == 0 ) energy(t,run);
+		//Output energy
+		if( t%eneFreq == 0 ) energy(t,run);
 
 	}
 

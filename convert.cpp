@@ -17,8 +17,8 @@ int main(int argc, char** argv)
     double spacing = 0.81675;
     double dx = 0.0680625;
     double atomsx = 0.1;
-    double atomsy = 160.;
-    double atomsz = 160.;
+    double atomsy = 80.;
+    double atomsz = 80.;
     double dy = dx;
     double dz = dx;
     

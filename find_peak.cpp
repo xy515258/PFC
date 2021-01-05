@@ -15,14 +15,14 @@ int main(int argc, char** argv)
     int ym, yp, zm, zp;
     int step, index,indexmy,indexpy,indexmz,indexpz,indexmymz,indexmypz,indexpymz,indexpypz;
     int atom_num = 0;
-    int totalstep = 10000;
+    int totalstep = 500000;
     double spacing = 0.81675;
     double dx = 0.0680625;
     double dy = 0.0680625;
     double dz = 0.0680625;
     double atomsx = 0.1;
-    double atomsy = 160.;
-    double atomsz = 160.;
+    double atomsy = 80.;
+    double atomsz = 80.;
     
     const int NX = (int)(floor(spacing/dx*atomsx+.5));
     const int NY = (int)(floor(spacing/dy*atomsy+.5));
@@ -42,16 +42,16 @@ int main(int argc, char** argv)
     string filename3("3_a01_9000.dat");
 
     step = stoi(number);
-    dy = (1+0.05*step/totalstep)*dy;
+    dy = (1+0.0*step/totalstep)*dy;
     char filenameout[sizeof "dump.00000000"];
     sprintf(filenameout, "dump.%08d", step);
 
-    double xlo = 0.;
-    double xhi = NX*dx*10;
-    double ylo = 0.;
-    double yhi = NY*dy;
-    double zlo = 0.;
-    double zhi = NZ*dz;
+    double xlo = -1/2.*1.633;
+    double xhi = 1/2.*1.633;
+    double ylo = -NY*dy/2.;
+    double yhi = NY*dy/2.;
+    double zlo = -NZ*dz/2.;
+    double zhi = NZ*dz/2.;
 
     filename1.replace(6,4,number);
     filename2.replace(6,4,number);
@@ -98,7 +98,7 @@ int main(int argc, char** argv)
         indexmypz = ym+NY*zp;
         indexpymz = yp+NY*zm;
         indexpypz = yp+NY*zp;
-        if((n1[index]>n1[indexmy])&&(n1[index]>n1[indexpy])&&(n1[index]>n1[indexmz])&&(n1[index]>n1[indexpz])&&(n1[index]>n1[indexmymz])&&(n1[index]>n1[indexmypz])&&(n1[index]>n1[indexpymz])&&(n1[index]>n1[indexpypz]))
+        if((n1[index]>=n1[indexmy])&&(n1[index]>n1[indexpy])&&(n1[index]>=n1[indexmz])&&(n1[index]>n1[indexpz])&&(n1[index]>=n1[indexmymz])&&(n1[index]>n1[indexmypz])&&(n1[index]>=n1[indexpymz])&&(n1[index]>n1[indexpypz]))
         {
             atom_num += 1;
             type[atom_num] = 1;
@@ -106,7 +106,7 @@ int main(int argc, char** argv)
             Y[atom_num] = (double)y/NY;
             Z[atom_num] = (double)z/NZ;
         }
-        if((n2[index]>n2[indexmy])&&(n2[index]>n2[indexpy])&&(n2[index]>n2[indexmz])&&(n2[index]>n2[indexpz])&&(n2[index]>n2[indexmymz])&&(n2[index]>n2[indexmypz])&&(n2[index]>n2[indexpymz])&&(n2[index]>n2[indexpypz]))
+        if((n2[index]>=n2[indexmy])&&(n2[index]>n2[indexpy])&&(n2[index]>=n2[indexmz])&&(n2[index]>n2[indexpz])&&(n2[index]>=n2[indexmymz])&&(n2[index]>n2[indexmypz])&&(n2[index]>=n2[indexpymz])&&(n2[index]>n2[indexpypz]))
         {
             atom_num += 1;
             type[atom_num] = 2;
@@ -115,10 +115,10 @@ int main(int argc, char** argv)
             Z[atom_num] = (double)z/NZ;
         }
         
-        if((n3[index]>n3[indexmy])&&(n3[index]>n3[indexpy])&&(n3[index]>n3[indexmz])&&(n3[index]>n3[indexpz])&&(n3[index]>n3[indexmymz])&&(n3[index]>n3[indexmypz])&&(n3[index]>n3[indexpymz])&&(n3[index]>n3[indexpypz]))
+        if((n3[index]>=n3[indexmy])&&(n3[index]>n3[indexpy])&&(n3[index]>=n3[indexmz])&&(n3[index]>n3[indexpz])&&(n3[index]>=n3[indexmymz])&&(n3[index]>n3[indexmypz])&&(n3[index]>=n3[indexpymz])&&(n3[index]>n3[indexpypz]))
         {
             atom_num += 1;
-            type[atom_num] = 1;
+            type[atom_num] = 3;
             X[atom_num] = 0.83333;
             Y[atom_num] = (double)y/NY;
             Z[atom_num] = (double)z/NZ;

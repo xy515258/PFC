@@ -1,5 +1,5 @@
 #!/bin/sh
-for step in {0..100}
+for step in {0..50}
 do
     let a=$step*5000
     echo $a
